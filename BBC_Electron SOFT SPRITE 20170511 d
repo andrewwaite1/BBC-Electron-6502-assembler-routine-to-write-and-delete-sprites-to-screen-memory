@@ -1,0 +1,121 @@
+   10 REM Soft sprite blit routine using EOR technique with vertical pixel resolution
+   20 REM By Andrew Waite
+   30 :
+   40 REM This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by
+   50 REM the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+   60 REM For a copy of the GNU General Public License, see <http://www.gnu.org/licenses/>.
+   70 :
+   80 REM Pass memory location of sprite source from BASIC to machine code via resident integer variable K%
+   90 REM And sprite target memory location via N%
+  100 REM Resident integer variables stored in memory between &400 and &468
+  110 REM Zero page memory between &70 and &8F available for user
+  120 :
+  130 X1%=128:REM X-coordinate of first sprite
+  140 Y1%=512:REM Y-coordinate of first sprite
+  150 REM Origin in top left of screen, compared to bottom left for BBC Basic graphics
+  160 Z1_New%=&C000:REM Target memory location for first sprite (first time sprite written to memory is a dummy write a location in ROM)
+  170 :
+  180 X2%=256:REM Second sprite
+  190 Y2%=512
+  200 Z2_New%=&C000
+  210 :
+  220 X3%=384:REM Third sprite
+  230 Y3%=512
+  240 Z3_New%=&C000
+  250 :
+  260 X4%=512:REM Fourth sprite
+  270 Y4%=512
+  280 Z4_New%=&C000
+  290 :
+  300 MODE 1
+  310 HIMEM=&2B00:REM Lower HIMEM for space to store machine code
+  320 PROCassem
+  330 FOR N%=0 TO 255:?(&2D00+N%)=(N%+8) MOD 256:?(&2E00+N%)=(N%+16) MOD 256:?(&2F00+N%)=(N%+24) MOD 256:NEXT
+  340 PRINT'"MACHINE CODE ENTRY POINT FOR 'CALL' :"
+  350 PRINT'"blit16x16 : &";~blit16x16
+  360 PRINT'"PRESS 'Z' to move sprites up, 'X' for down"
+  370 PRINT'"PRESS <SPACE> TO START"
+  380 REPEAT UNTIL GET=32:CLS
+  390 :
+  400 A1$="YOUR__SPRITE"
+  410 A2$="BITMAPS_HERE":REM Experiment changing these lines or overwrite with UDGs!
+  420 FOR L%=1 TO LEN(A1$)
+  430   COLOUR (L%MOD3)+1
+  440   PRINT TAB(L%-1,0);MID$(A1$,L%,1)
+  450   PRINT TAB(L%-1,1);MID$(A2$,L%,1)
+  460 NEXT
+  470 :
+  480 X1%=X1%DIV2:X2%=X2%DIV2:X3%=X3%DIV2:X4%=X4%DIV2:REM Divide x-coordinate by 2 to simplify calc. of Z1_New%
+  490 :
+  500 REPEAT
+  510   :
+  520   IF INKEY(-98) Y1%=Y1%+4:Y2%=Y2%+8:Y3%=Y3%+4:Y4%=Y4%+8:REM Determine new y co-ordinates for each sprite upon key presses
+  530   IF INKEY(-67) Y1%=Y1%-4:Y2%=Y2%-8:Y3%=Y3%-4:Y4%=Y4%-8
+  540   IF Y1%>896 Y1%=896
+  550   IF Y1%<128 Y1%=128
+  560   IF Y2%>896 Y2%=896
+  570   IF Y2%<128 Y2%=128
+  580   IF Y3%>896 Y3%=896
+  590   IF Y3%<128 Y3%=128
+  600   IF Y4%>896 Y4%=896
+  610   IF Y4%<128 Y4%=128
+  620   :
+  630   Z1_Old%=Z1_New%:REM store old sprite target location so that it can be deleted next time around the loop
+  640   Z1_New%=((Y1%AND2016)*20)+((Y1%AND31)DIV4)+(X1%AND2032)+&3000:REM Convert x and y co-ordinates to a memory location
+  650   K%=&3000:N%=Z1_Old%:CALL blit16x16:REM Delete old sprite. Sprite source is at memory location K%, old image for deletion at memory location N%
+  660   K%=&3000:N%=Z1_New%:CALL blit16x16:REM New sprite location is at N%, change K% for animated sprite
+  670   :
+  680   Z2_Old%=Z2_New%
+  690   Z2_New%=((Y2%AND2016)*20)+((Y2%AND31)DIV4)+(X2%AND2032)+&3000
+  700   K%=&3020:N%=Z2_Old%:CALL blit16x16
+  710   K%=&3020:N%=Z2_New%:CALL blit16x16
+  720   :
+  730   Z3_Old%=Z3_New%
+  740   Z3_New%=((Y3%AND2016)*20)+((Y3%AND31)DIV4)+(X3%AND2032)+&3000
+  750   K%=&3040:N%=Z3_Old%:CALL blit16x16
+  760   K%=&3040:N%=Z3_New%:CALL blit16x16
+  770   :
+  780   Z4_Old%=Z4_New%
+  790   Z4_New%=((Y4%AND2016)*20)+((Y4%AND31)DIV4)+(X4%AND2032)+&3000
+  800   K%=&3060:N%=Z4_Old%:CALL blit16x16
+  810   K%=&3060:N%=Z4_New%:CALL blit16x16
+  820   :
+  830 UNTIL FALSE
+  840 END
+  850 :
+  860 DEF PROCassem
+  870 FOR I%=0 TO 3 STEP 3
+  880   P%=&2B00
+  890   [OPT I%
+  900   .blit16x16
+  910   \
+  920   LDA &438:STA &72:CLC:ADC #128:STA &76
+  930   LDA &439:STA &73:ADC #2:STA &77
+  940   LDA &42C:STA &70:CLC:ADC #128:STA &74
+  950   LDA &42D:STA &71:ADC #2:STA &75
+  960   LDX #0:LDY #0
+  970   .blit16_loop
+  980   \
+  990   LDA (&70),Y:EOR (&72),Y:STA (&72),Y
+ 1000   LDA (&74),Y:EOR (&76),Y:STA (&76),Y
+ 1010   LDY &2D00,X
+ 1020   LDA (&70),Y:EOR (&72),Y:STA (&72),Y
+ 1030   LDA (&74),Y:EOR (&76),Y:STA (&76),Y
+ 1040   LDY &2E00,X
+ 1050   LDA (&70),Y:EOR (&72),Y:STA (&72),Y
+ 1060   LDA (&74),Y:EOR (&76),Y:STA (&76),Y
+ 1070   LDY &2F00,X
+ 1080   LDA (&70),Y:EOR (&72),Y:STA (&72),Y
+ 1090   LDA (&74),Y:EOR (&76),Y:STA (&76),Y
+ 1100   INX:TXA:TAY:CLC:ADC &72:AND #8
+ 1110   BEQ blit16_jump
+ 1120   \
+ 1130   LDA &72:CLC:ADC #120:STA &72:LDA &73:ADC #2:STA &73
+ 1140   LDA &76:CLC:ADC #120:STA &76:LDA &77:ADC #2:STA &77
+ 1150   .blit16_jump
+ 1160   \
+ 1170   TYA:CMP #8:BNE blit16_loop
+ 1180   RTS
+ 1190   ]
+ 1200 NEXT
+ 1210 ENDPROC
